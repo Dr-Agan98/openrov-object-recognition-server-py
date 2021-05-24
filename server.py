@@ -19,7 +19,8 @@ def root():
 
 @socketio.on("test")
 def handle_my_custom_event(data):
-    img = Image.open(io.BytesIO( base64.b64decode( data['data'].split(',')[1] )))
+    imgURI = json.loads(data)
+    img = Image.open(io.BytesIO( base64.b64decode( imgURI['data'].split(',')[1] )))
     img_arr = np.array(img.resize((d.network_width(), d.network_height())))
     detections = d.perform_detect(image_path_or_buf=img_arr, show_image=False)
     for detection in detections:
@@ -34,6 +35,6 @@ def handle_my_custom_event(data):
             }       
         }
         emit("detection", json.dumps(box))
-        #print(f'{detection.class_name.ljust(10)} | {detection.class_confidence * 100:.1f} % | {box}')
+        #print(f'{detection.class_name.ljust(10)} | {detection.class_confidence * 100:.1f} % | {box}')'''
 
 socketio.run(app, host="0.0.0.0")
