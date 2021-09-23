@@ -4,14 +4,17 @@ from flask_socketio import SocketIO,emit
 from PIL import Image
 import base64, io
 import numpy as np
-from yolov4 import Detector
 import json
+import darknet, darknet_images
+import cv2
 
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
-d = Detector(config_path="/home/nagard/Progetti/openrov-object-recognition-server-py/yolov4-tiny-3l.cfg", weights_path="/home/nagard/Progetti/openrov-object-recognition-server-py/yolov4-tiny-3l_best_2.weights" , meta_path="/home/nagard/Progetti/openrov-object-recognition-server-py/data/detector.data")
+net, class_names, colors = darknet.load_network('./yolov4-tiny-3l.cfg', './data/detector.data', './yolov4-tiny-3l_best_2.weights')
+net_width = darknet.network_width(net)
+net_height = darknet.network_height(net)
 
 @app.route("/",methods=['GET','POST'])
 def root():
@@ -21,20 +24,30 @@ def root():
 def handle_my_custom_event(data):
     imgURI = json.loads(data)
     img = Image.open(io.BytesIO( base64.b64decode( imgURI['data'].split(',')[1] )))
-    img_arr = np.array(img.resize((d.network_width(), d.network_height())))
-    detections = d.perform_detect(image_path_or_buf=img_arr, show_image=False)
-    for detection in detections:
-        box = {
-            'class': detection.class_name.ljust(10),
-            'confidence': detection.class_confidence,
-            'box':{
-                'x': detection.left_x,
-                'y': detection.top_y,
-                'w': detection.width,
-                'h': detection.height
-            }       
+    img_width = img.width
+    img_height = img.height
+    img_arr = np.array(img)
+
+    img, detections  = darknet_images.detect(img_arr, net, class_names, colors, thresh=0.1)
+
+    bd_boxs = []
+    for label, conf, coords in detections:
+        x, y, w, h = coords
+        bd_box = {
+                'class': label,
+                'confidence': float(conf),
+                'box':{
+                    'x': int((x*img_width) / net_width),
+                    'y': int((y*img_height) / net_height),
+                    'w': int((w*img_width) / net_width),
+                    'h': int((h*img_height) / net_height)
+                }       
         }
-        emit("detection", json.dumps(box))
-        #print(f'{detection.class_name.ljust(10)} | {detection.class_confidence * 100:.1f} % | {box}')'''
+        bd_boxs.append(bd_box)
+        #print(bd_box)
+
+    emit("detection", json.dumps(bd_boxs))
+
+#cv2.imwrite("./prediction.jpeg", img)
 
 socketio.run(app, host="0.0.0.0")
