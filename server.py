@@ -20,8 +20,8 @@ net_height = darknet.network_height(net)
 def root():
     return '{box:null}'
 
-@socketio.on("test")
-def handle_my_custom_event(data):
+@socketio.on("detect")
+def handle_detect(data):
     imgURI = json.loads(data)
     img = Image.open(io.BytesIO( base64.b64decode( imgURI['data'].split(',')[1] )))
     img_width = img.width
@@ -44,7 +44,6 @@ def handle_my_custom_event(data):
                 }       
         }
         bd_boxs.append(bd_box)
-        #print(bd_box)
 
     emit("detection", json.dumps(bd_boxs))
 
